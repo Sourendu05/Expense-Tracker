@@ -1,10 +1,12 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 
     id("com.google.devtools.ksp")
-    kotlin("plugin.serialization") version "2.2.0"
+    kotlin("plugin.serialization") version "2.3.0"
     id("com.google.dagger.hilt.android")
 }
 
@@ -35,12 +37,26 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
+
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
+        }
     }
+
     buildFeatures {
         compose = true
     }
+
+    packaging {
+        jniLibs {
+            keepDebugSymbols += "**/libandroidx.graphics.path.so"
+        }
+    }
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.add("-Xlint:-processing")
 }
 
 dependencies {
@@ -65,18 +81,18 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
 
     // Navigation
-    implementation("androidx.navigation:navigation-compose:2.9.2")
+    implementation("androidx.navigation:navigation-compose:2.9.6")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
 
     // Room Dependencies
-    val room_version = "2.7.2"
+    val room_version = "2.8.4"
     implementation("androidx.room:room-runtime:$room_version")
-    annotationProcessor("androidx.room:room-compiler:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
     implementation("androidx.room:room-ktx:$room_version")
 
     // DI
-    implementation("com.google.dagger:hilt-android:2.57")
-    ksp("com.google.dagger:hilt-android-compiler:2.57")
-    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+    implementation("com.google.dagger:hilt-android:2.57.2")
+    ksp("com.google.dagger:hilt-android-compiler:2.57.2")
+    implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
+    implementation("androidx.hilt:hilt-lifecycle-viewmodel-compose:1.3.0")
 }

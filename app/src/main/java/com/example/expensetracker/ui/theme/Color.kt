@@ -1,11 +1,10 @@
 package com.example.expensetracker.ui.theme
 
-import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.graphics.Color
 
 // Light theme colors - Green spectrum
 val Green80 = Color(0xFF28DC26)  // Primary green
