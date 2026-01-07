@@ -16,6 +16,10 @@ class Repo(val database: PersonDatabase) {
         database.personDbDao().deletePerson(person)
     }
 
+    suspend fun deletePersons(persons: List<PersonDbTable>) {
+        database.personDbDao().deletePersons(persons)
+    }
+
     fun getAllPersons(): Flow<List<PersonDbTable>> {
         return database.personDbDao().getAllPersons()
     }

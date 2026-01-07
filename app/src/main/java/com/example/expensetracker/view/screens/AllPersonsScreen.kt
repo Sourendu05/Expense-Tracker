@@ -1,9 +1,15 @@
 package com.example.expensetracker.view.screens
 
+import android.app.Activity
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -19,7 +25,9 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -109,10 +117,29 @@ fun AllPersonsScreen(
     navController: NavHostController
 ) {
     val context = LocalContext.current
+    val activity = context as? Activity
     val showDialog = remember { mutableStateOf(false) }
+    val showDeleteDialog = remember { mutableStateOf(false) }
     val selectedPersons = remember { mutableStateListOf<PersonDbTable>() }
     val allPersonsChecked = remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    
+    var backPressedTime by remember { mutableStateOf(0L) }
+    val scope = rememberCoroutineScope()
+    
+    BackHandler {
+        if (selectedPersons.isNotEmpty()) {
+            selectedPersons.clear()
+        } else {
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - backPressedTime < 2000) {
+                activity?.finish()
+            } else {
+                backPressedTime = currentTime
+                Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     // Launcher for Export (Create Document)
     val exportLauncher = rememberLauncherForActivityResult(
@@ -197,14 +224,7 @@ fun AllPersonsScreen(
                                     )
                                 }
                                 IconButton(onClick = {
-                                    selectedPersons.forEach { person ->
-                                        state.value.personId.value = person.id
-                                        state.value.personName.value = person.personName
-                                        state.value.amountReceivable.value = person.amountReceivable
-                                        state.value.expenseList.value = person.expenseList
-                                        viewModel.deletePerson()
-                                    }
-                                    selectedPersons.clear()
+                                    showDeleteDialog.value = true
                                 }) {
                                     Icon(
                                         imageVector = Icons.Rounded.Delete,
@@ -406,6 +426,74 @@ fun AllPersonsScreen(
                     item { Spacer(modifier = Modifier.height(80.dp)) }
                 }
             }
+
+            // Delete Confirmation Dialog
+            if (showDeleteDialog.value) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteDialog.value = false },
+                    shape = RoundedCornerShape(28.dp),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    icon = {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.errorContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    },
+                    title = {
+                        Text(
+                            text = "Delete ${selectedPersons.size} ${if (selectedPersons.size == 1) "Person" else "Persons"}?",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = "This will permanently delete all selected persons and their transaction history. This action cannot be undone.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                viewModel.deletePersons(selectedPersons.toList())
+                                selectedPersons.clear()
+                                showDeleteDialog.value = false
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Delete", fontWeight = FontWeight.SemiBold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { showDeleteDialog.value = false },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
         }
     }
 }
@@ -545,6 +633,7 @@ private fun PremiumAddPersonDialog(
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PersonCard(
     person: PersonDbTable,
@@ -603,20 +692,24 @@ fun PersonCard(
                 scaleX = scale
                 scaleY = scale
             }
-            .clickable(
+            .combinedClickable(
                 interactionSource = interactionSource,
-                indication = null
-            ) {
-                if (selectedPersons.size > 0) {
+                indication = null,
+                onClick = {
+                    if (selectedPersons.size > 0) {
+                        togglePersonSelection(person)
+                    } else {
+                        state.value.personId.value = person.id
+                        state.value.personName.value = person.personName
+                        state.value.amountReceivable.value = person.amountReceivable
+                        state.value.expenseList.value = person.expenseList
+                        navController.navigate(PersonExpenseScreenUI(person.id))
+                    }
+                },
+                onLongClick = {
                     togglePersonSelection(person)
-                } else {
-                    state.value.personId.value = person.id
-                    state.value.personName.value = person.personName
-                    state.value.amountReceivable.value = person.amountReceivable
-                    state.value.expenseList.value = person.expenseList
-                    navController.navigate(PersonExpenseScreenUI(person.id))
                 }
-            }
+            )
     ) {
         Row(
             modifier = Modifier

@@ -27,6 +27,12 @@ class ExpenseViewModel @Inject constructor(private val repo: Repo) : ViewModel()
             // Most recently created or updated persons appear at the top
             list.sortedByDescending { person ->
                 person.lastModified
+            }.map { person ->
+                // Sort expenses within each person by date (oldest first)
+                // This ensures chronological order in the chat-like UI
+                person.copy(
+                    expenseList = person.expenseList.sortedBy { it.expenseDate }
+                )
             }
         }
         .stateIn(
@@ -75,6 +81,12 @@ class ExpenseViewModel @Inject constructor(private val repo: Repo) : ViewModel()
         state.value.personName.value = ""
         state.value.amountReceivable.value = 0.0
         state.value.expenseList.value = emptyList()
+    }
+
+    fun deletePersons(persons: List<PersonDbTable>) {
+        viewModelScope.launch {
+            repo.deletePersons(persons)
+        }
     }
 
     // ---- Import/Export Functions ----

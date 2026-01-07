@@ -16,6 +16,9 @@ interface PersonDbDao {
     @Delete
     suspend fun deletePerson(person: PersonDbTable)
 
+    @Delete
+    suspend fun deletePersons(persons: List<PersonDbTable>)
+
     @Query("SELECT * FROM person_Db_Table")
     fun getAllPersons(): Flow<List<PersonDbTable>>
 

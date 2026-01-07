@@ -17,7 +17,9 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -114,6 +116,7 @@ fun PersonExpensesScreen(
     navController: NavHostController
 ) {
     val showDialog = remember { mutableStateOf(false) }
+    val showDeleteDialog = remember { mutableStateOf(false) }
     val expenseType = remember { mutableStateOf(true) }
     val selectedExpenses = remember { mutableStateListOf<ExpenseModel>() }
     val allExpensesChecked = remember { mutableStateOf(false) }
@@ -185,21 +188,7 @@ fun PersonExpensesScreen(
                                     )
                                 }
                                 IconButton(onClick = {
-                                    selectedExpenses.forEach { expense ->
-                                        val amountChange = if (expense.expenseType) {
-                                            -expense.expenseAmount
-                                        } else {
-                                            expense.expenseAmount
-                                        }
-                                        state.value.amountReceivable.value += amountChange
-                                    }
-                                    
-                                    val updatedExpenses = state.value.expenseList.value.toMutableList()
-                                    updatedExpenses.removeAll(selectedExpenses)
-                                    state.value.expenseList.value = updatedExpenses
-                                    state.value.personId.value = personId
-                                    viewModel.upsertPerson()
-                                    selectedExpenses.clear()
+                                    showDeleteDialog.value = true
                                 }) {
                                     Icon(
                                         imageVector = Icons.Rounded.Delete,
@@ -412,7 +401,9 @@ fun PersonExpensesScreen(
                             expenseDate = date
                         )
                         
-                        val updatedExpenses = state.value.expenseList.value + newExpense
+                        // Add and immediately sort by date (oldest first)
+                        val updatedExpenses = (state.value.expenseList.value + newExpense)
+                            .sortedBy { it.expenseDate }
                         state.value.expenseList.value = updatedExpenses
                         
                         val amountChange = if (expenseType.value) amount else -amount
@@ -420,6 +411,88 @@ fun PersonExpensesScreen(
                         state.value.personId.value = personId
                         viewModel.upsertPerson()
                         showDialog.value = false
+                    }
+                )
+            }
+
+            // Delete Confirmation Dialog
+            if (showDeleteDialog.value) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteDialog.value = false },
+                    shape = RoundedCornerShape(28.dp),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    icon = {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.errorContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    },
+                    title = {
+                        Text(
+                            text = "Delete ${selectedExpenses.size} ${if (selectedExpenses.size == 1) "Transaction" else "Transactions"}?",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = "This will permanently delete the selected transactions and update the balance accordingly.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                // Reverse the amounts for deleted expenses
+                                selectedExpenses.forEach { expense ->
+                                    val amountChange = if (expense.expenseType) {
+                                        -expense.expenseAmount
+                                    } else {
+                                        expense.expenseAmount
+                                    }
+                                    state.value.amountReceivable.value += amountChange
+                                }
+                                
+                                val updatedExpenses = state.value.expenseList.value.toMutableList()
+                                updatedExpenses.removeAll(selectedExpenses)
+                                state.value.expenseList.value = updatedExpenses
+                                state.value.personId.value = personId
+                                viewModel.upsertPerson()
+                                selectedExpenses.clear()
+                                showDeleteDialog.value = false
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Delete", fontWeight = FontWeight.SemiBold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { showDeleteDialog.value = false },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Cancel")
+                        }
                     }
                 )
             }
@@ -695,6 +768,7 @@ private fun PremiumExpenseDialog(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ExpenseCard(
     expense: ExpenseModel,
@@ -754,7 +828,7 @@ fun ExpenseCard(
                     MaterialTheme.colorScheme.payCard
             ),
             modifier = Modifier
-                .fillMaxWidth(0.8f)
+                .fillMaxWidth(0.55f)
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
@@ -766,14 +840,18 @@ fun ExpenseCard(
                         shape = bubbleShape
                     ) else Modifier
                 )
-                .clickable(
+                .combinedClickable(
                     interactionSource = interactionSource,
-                    indication = null
-                ) {
-                    if (selectedExpenses.size > 0) {
+                    indication = null,
+                    onClick = {
+                        if (selectedExpenses.size > 0) {
+                            toggleExpenseSelection(expense)
+                        }
+                    },
+                    onLongClick = {
                         toggleExpenseSelection(expense)
                     }
-                }
+                )
         ) {
             Row(
                 modifier = Modifier
