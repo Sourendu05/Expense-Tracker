@@ -13,7 +13,8 @@ data class PersonDbTable(
     @PrimaryKey(autoGenerate = true) var id: Int? = null,
     var personName: String,
     var amountReceivable: Double,
-    val expenseList: List<ExpenseModel>
+    val expenseList: List<ExpenseModel>,
+    var lastModified: Long = System.currentTimeMillis() // Timestamp of last modification
 )
 
 @Serializable
